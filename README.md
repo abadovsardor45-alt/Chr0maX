@@ -9,8 +9,7 @@ Tasodifiy ranglar palitrasini yaratuvchi, nusxalovchi va boshqaruvchi zamonaviy 
 
 ## 🌐 Demo
 
-**[netlify orqal
-ko'rish](https://chromax1.netlify.app)**
+**[GitHub Pages da ko'rish](https://alibekshomurotov.github.io/Rang_palitrasi/)**
 
 ## ✨ Xususiyatlar
 

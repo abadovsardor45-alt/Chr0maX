@@ -36,105 +36,171 @@ const GRADIENT_DIRECTIONS = [
   { label: 'Past-Chap', value: 'bottom left' }
 ];
 
-function App() {
-  const [colors, setColors] = useState([]);
-  const [toasts, setToasts] = useState([]);
-  const [category, setCategory] = useState('random');
-  const [mode, setMode] = useState('palette');
-  const [gradientColors, setGradientColors] = useState(['#3b82f6', '#8b5cf6']);
-  const [gradientType, setGradientType] = useState('linear');
-  const [gradientAngle, setGradientAngle] = useState(45);
-  const [gradientPosition, setGradientPosition] = useState('center');
-  const [favorites, setFavorites] = useState([]);
-  const [showFavorites, setShowFavorites] = useState(false);
-  const [showLockedOnly, setShowLockedOnly] = useState(false);
-  const [activePaletteId, setActivePaletteId] = useState(null);
-  const [colorBlindMode, setColorBlindMode] = useState('none');
-  const [colorCount, setColorCount_] = useState(10);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showGradientCSS, setShowGradientCSS] = useState(false);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const exportRef = useRef(null);
-  const imageInputRef = useRef(null);
-  const colorCountRef = useRef(10);
-  const modeRef = useRef('palette');
-  const categoryRef = useRef('random');
-  const gradientLengthRef = useRef(2);
+const GRADIENT_THEME_PRESETS = [
+  { name: 'Sunset', colors: ['#FF6B35', '#F7C59F', '#EFEFD0', '#004E89', '#1A659E'] },
+  { name: 'Ocean', colors: ['#0077B6', '#00B4D8', '#90E0EF', '#CAF0F8', '#023E8A'] },
+  { name: 'Neon', colors: ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC', '#3A86FF'] },
+  { name: 'Forest', colors: ['#2D6A4F', '#40916C', '#52B788', '#95D5B2', '#D8F3DC'] },
+  { name: 'Lavender', colors: ['#7B2CBF', '#9D4EDD', '#C77DFF', '#E0AAFF', '#FF99E8'] },
+  { name: 'Fire', colors: ['#470024', '#8A0538', '#CD103F', '#F57336', '#FFC857'] },
+  { name: 'Sahar', colors: ['#FF9A9E', '#FECFEF', '#FEE140', '#FA709A', '#FC8B9E'] },
+  { name: 'Muz', colors: ['#00C9FF', '#92FE9D', '#0ABFBC', '#E0F7FA', '#80DEEA'] },
+  { name: 'Yoz', colors: ['#FC5C7D', '#6A82FB', '#F2994A', '#F2C94C', '#EB5757'] },
+  { name: 'Zumrad', colors: ['#11998E', '#38EF7D', '#0B8457', '#6EE2A2', '#1DB954'] }
+];
 
-  const setColorCount = (n) => {
-    colorCountRef.current = n;
-    setColorCount_(n);
-    setColors(prev => {
-      const newArr = generateColorArray(n, categoryRef.current);
-      return newArr.map((hex, i) => ({
-        hex: prev[i] && prev[i].isLocked ? prev[i].hex : hex,
-        isLocked: prev[i] ? prev[i].isLocked : false
-      }));
-    });
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.substr(0, 2), 16), g: parseInt(h.substr(2, 2), 16), b: parseInt(h.substr(4, 2), 16) };
+}
+
+function generateCSSVars(colors) {
+  let css = ':root {\n';
+  colors.forEach((hex, i) => {
+    css += `  --color-${i + 1}: ${hex};\n`;
+  });
+  css += '}';
+  return css;
+}
+
+function generateRGBVars(colors) {
+  let css = ':root {\n';
+  colors.forEach((hex, i) => {
+    const { r, g, b } = hexToRgb(hex);
+    css += `  --color-${i + 1}: ${r}, ${g}, ${b};\n`;
+  });
+  css += '}';
+  return css;
+}
+
+function generateTailwindConfig(colors) {
+  let tw = '// tailwind.config.js / theme.extend.colors\ncolors: {\n  palette: {\n';
+  colors.forEach((hex, i) => {
+    tw += `    ${(i + 1) * 100}: '${hex}',\n`;
+  });
+  tw += '  }\n}';
+  return tw;
+}
+
+function generateSCSSVars(colors) {
+  let scss = '';
+  colors.forEach((hex, i) => {
+    scss += `$$color-${i + 1}: ${hex};\n`;
+  });
+  return scss.trim();
+}
+
+function generateLESSVars(colors) {
+  let less = '';
+  colors.forEach((hex, i) => {
+    less += `@color-${i + 1}: ${hex};\n`;
+  });
+  return less.trim();
+}
+
+function CodePanelContent({ colors, gradientCode }) {
+  const [tab, setTab] = useState('css');
+  const [copied, setCopied] = useState(false);
+
+  const codeMap = {
+    css: generateCSSVars(colors),
+    rgb: generateRGBVars(colors),
+    tailwind: generateTailwindConfig(colors),
+    scss: generateSCSSVars(colors),
+    less: generateLESSVars(colors),
   };
 
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
+  const code = codeMap[tab];
 
-  useEffect(() => {
-    categoryRef.current = category;
-  }, [category]);
+  const copyCode = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-  useEffect(() => {
-    gradientLengthRef.current = gradientColors.length;
-  }, [gradientColors.length]);
+  return (
+    <div className="code-panel-inner">
+      {gradientCode && (
+        <div className="code-gradient-bar">
+          <code>{gradientCode}</code>
+          <button className="copy-mini-btn" onClick={() => { navigator.clipboard.writeText(gradientCode); }} title="Nusxalash">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+      )}
+      <div className="code-tabs">
+        <button className={'code-tab' + (tab === 'css' ? ' active' : '')} onClick={() => setTab('css')}>CSS</button>
+        <button className={'code-tab' + (tab === 'rgb' ? ' active' : '')} onClick={() => setTab('rgb')}>RGB</button>
+        <button className={'code-tab' + (tab === 'tailwind' ? ' active' : '')} onClick={() => setTab('tailwind')}>Tailwind</button>
+        <button className={'code-tab' + (tab === 'scss' ? ' active' : '')} onClick={() => setTab('scss')}>SCSS</button>
+        <button className={'code-tab' + (tab === 'less' ? ' active' : '')} onClick={() => setTab('less')}>LESS</button>
+      </div>
+      <div className="code-body">
+        <pre>{code}</pre>
+        <button className="code-copy-btn" onClick={copyCode}>
+          {copied ? 'Nusxa olindi' : 'Nusxa Olish'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    const saved = localStorage.getItem('chromax_favorites');
-    let favs = [];
-    if (saved) {
-      try { favs = JSON.parse(saved); setFavorites(favs); } catch { }
-    }
-    localStorage.setItem('chromax_favorites', JSON.stringify(favs));
-    const activeId = localStorage.getItem('chromax_active_palette');
-    if (activeId) {
-      try {
-        const id = Number(activeId);
-        setActivePaletteId(id);
-        localStorage.setItem('chromax_active_palette', String(id));
-        const savedColors = localStorage.getItem('chromax_colors');
-        if (savedColors) {
-          try {
-            const parsed = JSON.parse(savedColors);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setColors(parsed);
-              const palette = favs.find(f => f.id === id);
-              if (palette && palette.category) setCategory(palette.category);
-              setMode('palette');
-              return;
-            }
-          } catch { }
-        }
-        const palette = favs.find(f => f.id === id);
-        if (palette) {
-          if (palette.type === 'gradient') {
-            setGradientColors(palette.colors);
-            setGradientType(palette.category || 'linear');
-            if (palette.extra) {
-              setGradientAngle(palette.extra.angle || 45);
-              setGradientPosition(palette.extra.position || 'center');
-            }
-            setMode('gradient');
-          } else {
-            const sliced = palette.colors.slice(0, colorCount).map(hex => ({ hex, isLocked: false }));
-            const padded = [...sliced];
-            while (padded.length < colorCount) {
-              padded.push({ hex: generateColorArray(1, 'random')[0], isLocked: false });
-            }
-            setColors(padded);
-            if (palette.category) setCategory(palette.category);
-            setMode('palette');
-          }
-        }
-      } catch { }
-    }
-  }, []);
+function App() {
+  const [colors, setColors] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chromax_colors');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    const arr = generateColorArray(5, 'random');
+    return arr.map(c => ({ hex: c, isLocked: false }));
+  });
+
+  const [mode, setMode] = useState('palette');
+  const [category, setCategory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chromax_category');
+      if (saved) return saved;
+    } catch (e) {}
+    return 'random';
+  });
+  const [colorCount, setColorCount] = useState(5);
+  const [gradientColors, setGradientColors] = useState(() => generateGradientColors(3));
+  const [gradientType, setGradientType] = useState('linear');
+  const [gradientAngle, setGradientAngle] = useState(135);
+  const [gradientPosition, setGradientPosition] = useState('center');
+  const [gradientStops, setGradientStops] = useState([]);
+  const [gradientPreset, setGradientPreset] = useState(null);
+  const [colorBlindMode, setColorBlindMode] = useState('none');
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chromax_favorites');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [showCodePanel, setShowCodePanel] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const [colorInputFocused, setColorInputFocused] = useState(false);
+  const [activePaletteId, setActivePaletteId] = useState(() => {
+    try {
+      return localStorage.getItem('chromax_active_palette') || null;
+    } catch (e) { return null; }
+  });
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  const codePanelRef = useRef(null);
+  const exportRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   useEffect(() => {
     if (colors.length > 0) {
@@ -143,265 +209,313 @@ function App() {
   }, [colors]);
 
   useEffect(() => {
-    if (colors.length !== colorCountRef.current) {
-      setColors(generateColorArray(colorCountRef.current, categoryRef.current).map(hex => ({ hex, isLocked: false })));
+    if (category) {
+      localStorage.setItem('chromax_category', category);
     }
-  }, []);
-
-  const generateNewPalette = () => {
-    if (modeRef.current === 'gradient') {
-      const newColors = generateGradientColors(gradientLengthRef.current);
-      setGradientColors(newColors);
-      return;
-    }
-    const count = colorCountRef.current;
-    const cat = categoryRef.current;
-    setColors(prev => {
-      const pool = generateColorArray(count, cat);
-      const res = [];
-      for (let i = 0; i < count; i++) {
-        const p = prev[i];
-        res.push({
-          hex: p && p.isLocked ? p.hex : pool[i],
-          isLocked: p ? p.isLocked : false
-        });
-      }
-      return res;
-    });
-  };
+  }, [category]);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.code === 'Space' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'INPUT') {
-        e.preventDefault();
-        generateNewPalette();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    if (gradientStops.length !== gradientColors.length) {
+      setGradientStops(gradientColors.map((_, i) =>
+        Math.round(i * 100 / (gradientColors.length - 1 || 1))
+      ));
+    }
+  }, [gradientColors.length]);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
+    function handleClickOutside(e) {
+      if (codePanelRef.current && !codePanelRef.current.contains(e.target)) {
+        const btn = document.querySelector('.header-btn.code-toggle');
+        if (btn && btn.contains(e.target)) return;
+        setShowCodePanel(false);
+      }
       if (exportRef.current && !exportRef.current.contains(e.target)) {
         setShowExportMenu(false);
       }
-    };
+    }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleLock = (index) => {
-    setColors(prev => {
-      const newColors = [...prev];
-      if (newColors[index]) newColors[index].isLocked = !newColors[index].isLocked;
-      return newColors;
-    });
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      if (e.code === 'Space' || e.key === ' ' || e.keyCode === 32) {
+        e.preventDefault();
+        generateNewPalette();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
+  const getDisplayColor = useCallback((hex) => {
+    if (colorBlindMode === 'none') return hex;
+    return simulateColorBlindness(hex, colorBlindMode);
+  }, [colorBlindMode]);
+
+  const visibleColors = useMemo(() => {
+    return colors.map(c => ({
+      ...c,
+      displayHex: getDisplayColor(c.hex)
+    }));
+  }, [colors, getDisplayColor]);
+
+  const gradientStopsStr = gradientColors.map((c, i) =>
+    `${c} ${(gradientStops[i] !== undefined ? gradientStops[i] : Math.round(i * 100 / (gradientColors.length - 1 || 1)))}%`
+  ).join(', ');
+
+  const gradientCSSWithStops = gradientType === 'linear'
+    ? `linear-gradient(${gradientAngle}deg, ${gradientStopsStr})`
+    : `conic-gradient(from ${gradientAngle}deg at ${gradientPosition || 'center'}, ${gradientStopsStr})`;
+
+  const gradientPreviewStyle = {
+    background: gradientCSSWithStops
   };
 
-  const updateColor = (index, newHex) => {
-    setColors(prev => {
-      const newColors = [...prev];
-      if (newColors[index]) newColors[index].hex = newHex;
-      return newColors;
-    });
-  };
-
-  const updateGradientColor = (index, newHex) => {
-    setGradientColors(prev => {
-      const newColors = [...prev];
-      newColors[index] = newHex;
-      return newColors;
-    });
-  };
-
-  const addGradientStop = () => {
-    setGradientColors(prev => [...prev, '#ffffff']);
-  };
-
-  const removeGradientStop = (index) => {
-    if (gradientColors.length <= 2) return;
-    setGradientColors(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
+  function addToast(text, type) {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, text: 'Nusxa olindi: ' + text }]);
+    setToasts(prev => [...prev, { id, text, type: type || 'info' }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 3000);
-  };
+  }
 
-  const saveToFavorites = () => {
+  function toggleLock(index) {
+    setColors(prev => prev.map((c, i) =>
+      i === index ? { ...c, isLocked: !c.isLocked } : c
+    ));
+  }
+
+  function updateColor(index, newHex) {
+    setColors(prev => prev.map((c, i) =>
+      i === index ? { ...c, hex: newHex } : c
+    ));
+  }
+
+  function generateNewPalette(newCount, newCategory) {
+    const count = newCount !== undefined ? newCount : colorCount;
+    const cat = newCategory || category;
+    if (mode === 'palette') {
+      let newHexes = generateColorArray(count, cat);
+      if (!newHexes || newHexes.length === 0) {
+        newHexes = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+      }
+      const sliced = newHexes.slice(0, count);
+      setColors(prev => {
+        const updated = [];
+        for (let i = 0; i < count; i++) {
+          if (prev[i] && prev[i].isLocked) {
+            updated.push(prev[i]);
+          } else {
+            updated.push({ hex: sliced[i] || '#888888', isLocked: false });
+          }
+        }
+        return updated;
+      });
+      setGradientPreset(null);
+    } else {
+      const newColors = generateGradientColors(gradientColors.length);
+      setGradientColors(newColors);
+      setGradientPreset(null);
+    }
+  }
+
+  function saveToFavorites() {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('uz-UZ');
+    const timeStr = now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
     const palette = {
-      id: Date.now(),
-      name: 'Palitra ' + (favorites.filter(f => f.type !== 'gradient').length + 1),
-      colors: mode === 'palette' ? colors.map(c => c.hex) : gradientColors,
+      id: Date.now().toString(),
+      name: `Palitra ${favorites.length + 1}`,
       type: mode,
       category: mode === 'palette' ? category : gradientType,
       count: mode === 'palette' ? colors.length : gradientColors.length,
-      extra: mode === 'gradient' ? { angle: gradientAngle, position: gradientPosition } : null,
-      date: new Date().toLocaleDateString(),
-      time: new Date().toLocaleTimeString()
+      colors: mode === 'palette' ? colors.map(c => c.hex) : gradientColors,
+      gradientType: mode === 'gradient' ? gradientType : undefined,
+      gradientAngle: mode === 'gradient' ? gradientAngle : undefined,
+      gradientStops: mode === 'gradient' ? gradientStops : undefined,
+      date: dateStr,
+      time: timeStr
     };
-    setFavorites(prev => {
-      const updated = [palette, ...prev];
-      localStorage.setItem('chromax_favorites', JSON.stringify(updated));
-      return updated;
-    });
-    const id = Date.now() + 1;
-    setToasts(prev => [...prev, { id, text: 'Sevimlilarga qoshildi' }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3000);
-  };
+    const updated = [...favorites, palette];
+    setFavorites(updated);
+    localStorage.setItem('chromax_favorites', JSON.stringify(updated));
+    addToast('Palitra sevimlilarga qoshildi', 'success');
+  }
 
-  const removeFavorite = (id) => {
-    setFavorites(prev => {
-      const updated = prev.filter(f => f.id !== id);
-      localStorage.setItem('chromax_favorites', JSON.stringify(updated));
-      return updated;
-    });
-  };
+  function removeFavorite(id) {
+    const updated = favorites.filter(p => p.id !== id);
+    setFavorites(updated);
+    localStorage.setItem('chromax_favorites', JSON.stringify(updated));
+  }
 
-  const loadFavorite = (palette) => {
+  function loadFavorite(palette) {
     if (palette.type === 'gradient') {
-      setGradientColors(palette.colors);
-      setGradientType(palette.category || 'linear');
-      if (palette.extra) {
-        setGradientAngle(palette.extra.angle || 45);
-        setGradientPosition(palette.extra.position || 'center');
-      }
       setMode('gradient');
+      setGradientColors(palette.colors);
+      if (palette.gradientType) setGradientType(palette.gradientType);
+      if (palette.gradientAngle) setGradientAngle(palette.gradientAngle);
+      if (palette.gradientStops) setGradientStops(palette.gradientStops);
     } else {
-      const sliced = palette.colors.slice(0, colorCount).map(hex => ({ hex, isLocked: false }));
-      while (sliced.length < colorCount) {
-        sliced.push({ hex: generateColorArray(1, 'random')[0], isLocked: false });
-      }
-      setColors(sliced);
-      if (palette.category) setCategory(palette.category);
       setMode('palette');
+      setColors(palette.colors.map(c => ({ hex: c, isLocked: false })));
+      if (palette.category) setCategory(palette.category);
     }
     setShowFavorites(false);
-  };
+  }
 
-  const handleExport = (type) => {
-    const currentColors = colors.map(c => c.hex);
-    setShowExportMenu(false);
-    if (type === 'json') {
-      const data = { name: 'ChromaX', category, colors: currentColors };
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2));
-      downloadFile(dataStr, 'chromax_palette.json');
-    } else if (type === 'css') {
-      const css = exportToCSS(currentColors);
-      const dataStr = 'data:text/css;charset=utf-8,' + encodeURIComponent(css);
-      downloadFile(dataStr, 'chromax_palette.css');
-    } else if (type === 'png') {
-      const dataUrl = exportToPNG(currentColors);
-      downloadFile(dataUrl, 'chromax_palette.png');
+  function applyGradientPreset(name, colors) {
+    setGradientColors(colors);
+    setGradientPreset(name);
+  }
+
+  function addGradientStop() {
+    if (gradientColors.length >= 10) return;
+    const lastColor = gradientColors[gradientColors.length - 1] || '#888888';
+    const lastStop = gradientStops[gradientStops.length - 1] || 100;
+    const newPos = Math.min(100, lastStop - 10);
+    setGradientColors(prev => [...prev, lastColor]);
+    setGradientStops(prev => [...prev, Math.round(newPos)]);
+  }
+
+  function removeGradientStop(index) {
+    if (gradientColors.length <= 2) return;
+    setGradientColors(prev => prev.filter((_, i) => i !== index));
+    setGradientStops(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function updateGradientColor(index, newHex) {
+    setGradientColors(prev => prev.map((c, i) => i === index ? newHex : c));
+  }
+
+  function updateGradientStop(index, value) {
+    setGradientStops(prev => prev.map((s, i) => i === index ? value : s));
+  }
+
+  function handleGradientPreset(value) {
+    setGradientAngle(Number(value));
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    addToast('Nusxa olindi!', 'success');
+  }
+
+  function handleExport(format) {
+    if (mode === 'palette') {
+      const hexes = colors.map(c => c.hex);
+      if (format === 'json') {
+        const json = JSON.stringify({ colors: hexes, category }, null, 2);
+        downloadFile(json, 'palette.json', 'application/json');
+      } else if (format === 'css') {
+        const css = exportToCSS(hexes);
+        downloadFile(css, 'palette.css', 'text/css');
+      } else if (format === 'png') {
+        exportToPNG(hexes);
+      }
+    } else {
+      if (format === 'json') {
+        const json = JSON.stringify({
+          colors: gradientColors,
+          type: gradientType,
+          angle: gradientAngle,
+          stops: gradientStops
+        }, null, 2);
+        downloadFile(json, 'gradient.json', 'application/json');
+      } else if (format === 'css') {
+        downloadFile(gradientCSSWithStops, 'gradient.css', 'text/css');
+      } else if (format === 'png') {
+        exportToPNG(gradientColors);
+      }
     }
-  };
+    setShowExportMenu(false);
+  }
 
-  const downloadFile = (dataStr, filename) => {
-    const anchor = document.createElement('a');
-    anchor.setAttribute('href', dataStr);
-    anchor.setAttribute('download', filename);
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  };
+  function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
-  const importPalette = (e) => {
+  function importPalette(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target.result);
-        if (data && data.colors && Array.isArray(data.colors)) {
-          const sliced = data.colors.slice(0, colorCount);
-          const padded = sliced.map(hex => ({ hex, isLocked: false }));
-          while (padded.length < colorCount) {
-            padded.push({ hex: generateColorArray(1, 'random')[0], isLocked: false });
-          }
-          setColors(padded);
+        if (data.colors && Array.isArray(data.colors)) {
+          setColors(data.colors.map(c => ({ hex: c, isLocked: false })));
+          setMode('palette');
           if (data.category) setCategory(data.category);
+          addToast('Palitra yuklandi', 'success');
         }
-      } catch {
-        alert('Notogri fayl formati!');
+      } catch (err) {
+        addToast('Xatolik: fayl formati notogri', 'error');
       }
     };
     reader.readAsText(file);
-    e.target.value = null;
-  };
+    e.target.value = '';
+  }
 
-  const getDisplayColor = useCallback((hex) => {
-    return colorBlindMode !== 'none' ? simulateColorBlindness(hex, colorBlindMode) : hex;
-  }, [colorBlindMode]);
-
-  const displayColors = useMemo(() => colors.map(c => ({
-    ...c,
-    displayHex: getDisplayColor(c.hex)
-  })), [colors, getDisplayColor]);
-
-  const visibleColors = useMemo(() => {
-    let items = displayColors.slice(0, colorCount);
-    if (showLockedOnly) {
-      const locked = items.filter(c => c.isLocked);
-      if (locked.length > 0) items = locked;
-    }
-    return items;
-  }, [displayColors, colorCount, showLockedOnly]);
-
-  const handleImageUpload = async (e) => {
+  async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
     setIsExtracting(true);
     try {
-      const extracted = await extractColorsFromImage(file, 20);
-      const sliced = extracted.slice(0, colorCount).map(hex => ({ hex, isLocked: false }));
-      while (sliced.length < colorCount) {
-        sliced.push({ hex: generateColorArray(1, 'random')[0], isLocked: false });
-      }
-      setColors(sliced);
+      const hexes = await extractColorsFromImage(file, colorCount);
+      setColors(hexes.map(c => ({ hex: c, isLocked: false })));
       setMode('palette');
-      const id = Date.now();
-      setToasts(prev => [...prev, { id, text: extracted.length + ' ta rang ajratib olindi' }]);
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
-    } catch {
-      alert('Rang ajratib olishda xatolik!');
+      addToast('Ranglar rasmdan olindi', 'success');
+    } catch (err) {
+      addToast('Rang ajratib olishda xatolik', 'error');
     }
     setIsExtracting(false);
-    e.target.value = null;
-  };
-
-  const gradientCSS = buildGradientCSS(gradientType, gradientColors, gradientAngle, gradientPosition);
-
-  const gradientPreviewStyle = {
-    background: gradientCSS
-  };
-
-  const handleGradientPreset = (angle) => {
-    setGradientAngle(Number(angle));
-  };
+    e.target.value = '';
+  }
 
   return (
     <div className="app-container">
       <header className="header">
         <div className="header-content">
           <div className="logo">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <rect x="2" y="2" width="12" height="12" rx="3" fill="#6366f1"/>
-              <rect x="18" y="2" width="12" height="12" rx="3" fill="#06b6d4"/>
-              <rect x="2" y="18" width="12" height="12" rx="3" fill="#f59e0b"/>
-              <rect x="18" y="18" width="12" height="12" rx="3" fill="#ef4444"/>
+            <svg width="28" height="28" viewBox="0 0 28 28">
+              <rect x="0" y="0" width="12" height="12" rx="2" fill="#FF6B35"/>
+              <rect x="14" y="0" width="12" height="12" rx="2" fill="#00B4D8"/>
+              <rect x="0" y="14" width="12" height="12" rx="2" fill="#8338EC"/>
+              <rect x="14" y="14" width="12" height="12" rx="2" fill="#06D6A0"/>
             </svg>
             <span className="logo-text">ChromaX</span>
           </div>
-          <p className="subtitle">Ranglar Studiyasi</p>
         </div>
         <div className="header-actions">
+          <button
+            className={'header-btn' + (showCodePanel ? ' active' : '')}
+            onClick={() => setShowCodePanel(!showCodePanel)}
+            title="Kod paneli"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+          </button>
+          <div className="code-wrapper" ref={codePanelRef}>
+            {showCodePanel && (
+              <div className="code-panel">
+                <CodePanelContent
+                key={mode + '-' + (mode === 'palette' ? colors.map(c => c.hex).join('') : gradientColors.join(''))}
+                colors={mode === 'palette' ? colors.map(c => c.hex) : gradientColors}
+                gradientCode={mode === 'gradient' ? gradientCSSWithStops : null}
+                />
+              </div>
+            )}
+          </div>
           <button
             className={'header-btn' + (colorBlindMode !== 'none' ? ' active' : '')}
             onClick={() => setColorBlindMode(prev => prev === 'none' ? 'deuteranopia' : 'none')}
@@ -431,6 +545,7 @@ function App() {
           Daltonik rejimi: {colorBlindMode === 'protanopia' ? 'Protanopia' : colorBlindMode === 'deuteranopia' ? 'Deuteranopia' : 'Tritanopia'}
         </div>
       )}
+
       {mode === 'palette' ? (
         <main className="palette-wrapper">
           <div
@@ -481,70 +596,100 @@ function App() {
                           title="Rang tanlash"
                         />
                       </div>
+                      </div>
                     </div>
                   </div>
-                </div>
               );
             })}
           </div>
         </main>
       ) : (
         <main className="gradient-view">
-          <div className="gradient-preview" style={gradientPreviewStyle}>
-            <div className="gradient-overlay">
-              <span className="gradient-label">Gradiyent</span>
-              <div className="gradient-type-badge">{gradientType}</div>
-            </div>
-          </div>
-
           <div className="gradient-controls-panel">
-            <div className="gradient-type-selector">
-              {['linear', 'conic'].map(type => (
-                <button
-                  key={type}
-                  className={'type-btn' + (gradientType === type ? ' active' : '')}
-                  onClick={() => setGradientType(type)}
-                >
-                  {type === 'linear' ? 'Chiziqli' : 'Konus'}
-                </button>
-              ))}
-            </div>
+            <div className="gradient-controls-left">
+              <div className="gradient-type-selector">
+                {['linear', 'conic'].map(type => (
+                  <button
+                    key={type}
+                    className={'type-btn' + (gradientType === type ? ' active' : '')}
+                    onClick={() => setGradientType(type)}
+                  >
+                    {type === 'linear' ? 'Chiziqli' : 'Konus'}
+                  </button>
+                ))}
+              </div>
 
-            <div className="gradient-color-inputs">
-              {gradientColors.map((color, index) => (
-                <div key={index} className="gradient-color-item">
-                  <div className="gradient-color-item-header">
-                    <label>R{index + 1}</label>
-                    {gradientColors.length > 2 && (
-                      <button
-                        className="remove-stop-btn"
-                        onClick={() => removeGradientStop(index)}
-                        title="Ochirish"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => updateGradientColor(index, e.target.value)}
-                  />
-                  <span className="gradient-hex-label">{color}</span>
+              <div className="gradient-section-header">
+                <span>Ranglar</span>
+                <div className="gradient-preset-row">
+                  {GRADIENT_THEME_PRESETS.map(p => (
+                    <button
+                      key={p.name}
+                      className={'preset-swatch-btn' + (gradientPreset === p.name ? ' active' : '')}
+                      onClick={() => applyGradientPreset(p.name, p.colors)}
+                      title={p.name}
+                    >
+                      {p.colors.map((c, i) => (
+                        <span key={i} className="preset-swatch" style={{ backgroundColor: c }} />
+                      ))}
+                    </button>
+                  ))}
                 </div>
-              ))}
-              <button className="add-stop-btn" onClick={addGradientStop} title="Rang qoshish">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-              </button>
+              </div>
+
+              <div className="gradient-color-inputs">
+                {gradientColors.map((color, index) => (
+                  <div key={index} className="gradient-color-item">
+                    <div className="gradient-color-item-header">
+                      <label>R{index + 1}</label>
+                      {gradientColors.length > 2 && (
+                        <button
+                          className="remove-stop-btn"
+                          onClick={() => removeGradientStop(index)}
+                          title="Ochirish"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <div className="gradient-color-row">
+                      <input
+                        type="color"
+                        value={color}
+                        onChange={(e) => updateGradientColor(index, e.target.value)}
+                      />
+                      <div className="gradient-stop-control">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={gradientStops[index] || 0}
+                          onChange={(e) => updateGradientStop(index, Number(e.target.value))}
+                          className="stop-range"
+                        />
+                      </div>
+                    </div>
+                    <span className="gradient-hex-label">{color}</span>
+                  </div>
+                ))}
+                <div className="add-stop-row">
+                  {gradientColors.length < 10 && (
+                    <button className="add-stop-btn" onClick={addGradientStop} title="Rang qoshish">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="stop-count">{gradientColors.length}/10</span>
+                </div>
+              </div>
             </div>
 
-            {gradientType !== 'radial' && (
+            <div className="gradient-controls-right">
               <div className="gradient-angle-control">
-                <label>Burchak: {gradientAngle} gradus</label>
+                <label>Burchak: {gradientAngle}°</label>
                 <input
                   type="range"
                   min="0"
@@ -564,56 +709,51 @@ function App() {
                   ))}
                 </div>
               </div>
-            )}
 
-            <div className="gradient-direction-control">
-              <label>Joylashuv</label>
-              <div className="direction-presets">
-                {GRADIENT_DIRECTIONS.map(d => (
-                  <button
-                    key={d.value}
-                    className={'preset-btn dir-btn' + (gradientPosition === d.value ? ' active' : '')}
-                    onClick={() => setGradientPosition(d.value)}
-                    title={d.label}
-                  >
-                    {d.label}
-                  </button>
+              <div className="gradient-direction-control">
+                <label>Joylashuv</label>
+                <div className="direction-presets">
+                  {GRADIENT_DIRECTIONS.map(d => (
+                    <button
+                      key={d.value}
+                      className={'preset-btn dir-btn' + (gradientPosition === d.value ? ' active' : '')}
+                      onClick={() => setGradientPosition(d.value)}
+                      title={d.label}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="gradient-preview" style={gradientPreviewStyle}>
+            <div className="gradient-overlay">
+              <div className="gradient-label-row">
+                <span className="gradient-label">Gradiyent</span>
+                <div className="gradient-type-badge">{gradientType === 'linear' ? 'Chiziqli' : 'Konus'}</div>
+              </div>
+              <div className="gradient-colors-mini">
+                {gradientColors.map((c, i) => (
+                  <div key={i} className="gradient-mini-dot" style={{ backgroundColor: c }} title={`${c} ${gradientStops[i]}%`} />
                 ))}
               </div>
             </div>
+          </div>
 
-            <div className="gradient-css-section">
-              <button
-                className="gradient-css-toggle"
-                onClick={() => setShowGradientCSS(!showGradientCSS)}
-              >
-                {showGradientCSS ? 'CSS ni yopish' : 'CSS kodi'}
-              </button>
-              {showGradientCSS && (
-                <div className="gradient-css-output">
-                  <code>{gradientCSS}</code>
-                  <button
-                    className="copy-css-btn"
-                    onClick={() => copyToClipboard(gradientCSS)}
-                    title="CSS nusxalash"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {colorBlindMode !== 'none' && (
+          {colorBlindMode !== 'none' && (
               <div
                 className="gradient-cb-preview"
-                style={{ background: buildGradientCSS(gradientType, gradientColors.map(c => getDisplayColor(c)), gradientAngle, gradientPosition) }}
+                style={{
+                  background: gradientType === 'linear'
+                    ? `linear-gradient(${gradientAngle}deg, ${gradientColors.map((c, i) => `${getDisplayColor(c)} ${(gradientStops[i] !== undefined ? gradientStops[i] : Math.round(i * 100 / (gradientColors.length - 1 || 1)))}%`).join(', ')})`
+                    : `conic-gradient(from ${gradientAngle}deg at ${gradientPosition || 'center'}, ${gradientColors.map((c, i) => `${getDisplayColor(c)} ${(gradientStops[i] !== undefined ? gradientStops[i] : Math.round(i * 100 / (gradientColors.length - 1 || 1)))}%`).join(', ')})`
+                }}
               >
                 <span>Daltonik korinishi</span>
               </div>
             )}
-          </div>
         </main>
       )}
 
@@ -647,17 +787,19 @@ function App() {
           <input ref={imageInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageUpload} />
         </label>
 
-        <div className="counter-group">
-          {[{n:3, l:'3 ta'}, {n:5, l:'5 ta'}, {n:8, l:'8 ta'}, {n:10, l:'10 ta'}].map(item => (
-            <button
-              key={item.n}
-              className={'counter-pill' + (colorCount === item.n ? ' active' : '')}
-              onClick={() => setColorCount(item.n)}
-            >
-              {item.l}
-            </button>
-          ))}
-        </div>
+        {mode === 'palette' && (
+          <div className="counter-group">
+            {[{n:3, l:'3 ta'}, {n:5, l:'5 ta'}, {n:8, l:'8 ta'}, {n:10, l:'10 ta'}].map(item => (
+              <button
+                key={item.n}
+                className={'counter-pill' + (colorCount === item.n ? ' active' : '')}
+                onClick={() => { setColorCount(item.n); generateNewPalette(item.n); }}
+              >
+                {item.l}
+              </button>
+            ))}
+          </div>
+        )}
 
         {mode === 'palette' && (
           <select
@@ -674,7 +816,7 @@ function App() {
           </select>
         )}
 
-        <button className="btn-primary" onClick={generateNewPalette}>
+        <button className="btn-primary" onClick={(e) => { e.preventDefault(); generateNewPalette(); }}>
           <span>Yangi ranglar</span>
           <small className="key-hint">(Space)</small>
         </button>

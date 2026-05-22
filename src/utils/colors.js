@@ -11,14 +11,17 @@ const hslToHex = (h, s, l) => {
 
 export const generateColorArray = (count, category = 'random') => {
   const newColors = [];
-  const harmoniousBaseHue = Math.floor(Math.random() * 360);
+  let groupHue = 0;
 
   for (let i = 0; i < count; i++) {
     if (category === 'harmonious') {
-      const h = (harmoniousBaseHue + (i * (360 / count))) % 360;
-      const s = 60 + Math.random() * 30;
-      const l = 40 + Math.random() * 30;
-      newColors.push(hslToHex(h, s, l));
+      const posInGroup = i % 5;
+      if (posInGroup === 0) {
+        groupHue = Math.floor(Math.random() * 360);
+      }
+      const s = 65 + Math.floor(Math.random() * 30);
+      const l = Math.floor(8 + (posInGroup / 4) * 72);
+      newColors.push(hslToHex(groupHue, s, l));
     } else if (category === 'pastel') {
       const h = Math.floor(Math.random() * 360);
       const s = 60 + Math.floor(Math.random() * 40);
@@ -34,6 +37,14 @@ export const generateColorArray = (count, category = 'random') => {
       const s = 80 + Math.floor(Math.random() * 20);
       const l = 45 + Math.floor(Math.random() * 15);
       newColors.push(hslToHex(h, s, l));
+    } else if (category === 'monochromatic') {
+      const posInGroup = i % 5;
+      if (posInGroup === 0) {
+        groupHue = Math.floor(Math.random() * 360);
+      }
+      const s = 50 + Math.floor(Math.random() * 40);
+      const l = Math.floor(10 + (posInGroup / 4) * 70);
+      newColors.push(hslToHex(groupHue, s, l));
     } else {
       const h = Math.floor(Math.random() * 360);
       const s = Math.floor(Math.random() * 100);
